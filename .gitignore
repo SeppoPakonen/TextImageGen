@@ -7,6 +7,8 @@ release/
 # Temporary files
 *.tmp
 *.log
+tmp/
+test_output/
 
 # OS generated files
 .DS_Store
