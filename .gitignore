@@ -13,3 +13,6 @@ test_output/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+*.txt
+*.png
