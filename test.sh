@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # TextImageGen - Test Script
-# Creates a random 3-line text file and renders images using Cairo (default) or ffmpeg
+# Creates a random 3-line text file and renders images using Cairo (default)
 
 set -e  # Exit on any error
 
@@ -22,12 +22,6 @@ echo "Created test file with content:"
 cat "$TEST_DIR/test_lines.txt"
 echo ""
 
-# Check if the txt2png executable exists, build if not
-if [ ! -f "bin/txt2png" ]; then
-    echo "Building txt2png executable..."
-    ./build.sh
-fi
-
 # Check if Cairo-based text2png exists, build it if not
 if [ ! -f "bin/text2png" ]; then
     echo "Building Cairo-based text2png executable..."
@@ -37,17 +31,19 @@ if [ ! -f "bin/text2png" ]; then
         echo "Cairo-based text2png compiled successfully!" || \
         echo "Failed to compile Cairo-based text2png - missing Cairo dependencies?"
     else
-        echo "Cairo dependencies not found, skipping Cairo-based text2png compilation"
+        echo "Error: Cairo dependencies not found. Please install: cairo, fontconfig, and freetype2 development packages."
+        rm -rf "$TEST_DIR"
+        exit 1
     fi
 fi
 
-echo "Testing txt2png help functionality..."
-./bin/txt2png --help > /dev/null || echo "Warning: txt2png help command failed"
+echo "Testing text2png help functionality..."
+./bin/text2png --help > /dev/null || echo "Warning: text2png help command failed"
 
 echo "Rendering images from test lines using Cairo (default)..."
 RENDER_SUCCESS=false
 
-# Try to use Cairo-based text2png first (as requested)
+# Use Cairo-based text2png (primary method)
 if [ -f "bin/text2png" ]; then
     echo "Using Cairo-based text2png renderer..."
     ./bin/text2png "$TEST_DIR/test_lines.txt" "$TEST_DIR/output-" --font-size 48 --text-color "#FFFFFF" --outline-color "#000000" --outline-width 2
@@ -55,53 +51,14 @@ if [ -f "bin/text2png" ]; then
         RENDER_SUCCESS=true
         echo "Successfully created images using Cairo renderer"
     else
-        echo "Cairo renderer failed, falling back to alternative method"
+        echo "Cairo renderer failed"
+        rm -rf "$TEST_DIR"
+        exit 1
     fi
 else
-    echo "Cairo-based text2png not available, checking for alternatives..."
-fi
-
-# If Cairo failed or isn't available, fall back to ffmpeg
-if [ "$RENDER_SUCCESS" = false ]; then
-    echo "Falling back to ffmpeg renderer..."
-    
-    # Check if ffmpeg is available (which you have on Gentoo)
-    if ! command -v ffmpeg &> /dev/null; then
-        echo "Error: Neither Cairo nor ffmpeg are available. Please install Cairo dependencies or ffmpeg."
-        rm -rf "$TEST_DIR"
-        exit 1
-    fi
-
-    # Create images for each line using ffmpeg with transparent background
-    LINES=($(cat "$TEST_DIR/test_lines.txt"))
-    for i in "${!LINES[@]}"; do
-        idx=$((i+1))
-        text="${LINES[$i]}"
-        
-        # Use ffmpeg to create a single frame image with transparent background
-        # Use color=black@0 to create transparent background (alpha=0)
-        ffmpeg -y -f lavfi -i color=black@0:size=400x100:rate=1 -vf \
-        "format=rgba,drawtext=fontsize=32:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='$text'" \
-        -frames:v 1 -c:v png "$TEST_DIR/output-$idx.png" 2>/dev/null || \
-        # If default doesn't work, try with a specific font file
-        ffmpeg -y -f lavfi -i color=black@0:size=400x100:rate=1 -vf \
-        "format=rgba,drawtext=fontfile=/usr/share/fonts/dejavu/DejaVuSans.ttf:fontsize=32:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='$text'" \
-        -frames:v 1 -c:v png "$TEST_DIR/output-$idx.png" 2>/dev/null || \
-        # If no font works, try with a common font location on Linux
-        ffmpeg -y -f lavfi -i color=black@0:size=400x100:rate=1 -vf \
-        "format=rgba,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=32:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='$text'" \
-        -frames:v 1 -c:v png "$TEST_DIR/output-$idx.png"
-    done
-    
-    # Check if ffmpeg approach created files
-    if [ -f "$TEST_DIR/output-1.png" ]; then
-        RENDER_SUCCESS=true
-        echo "Successfully created images using ffmpeg renderer"
-    else
-        echo "All rendering methods failed"
-        rm -rf "$TEST_DIR"
-        exit 1
-    fi
+    echo "Error: Cairo-based text2png not available."
+    rm -rf "$TEST_DIR"
+    exit 1
 fi
 
 echo "Generated PNG files:"
